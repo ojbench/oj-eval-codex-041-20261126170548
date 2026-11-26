@@ -91,6 +91,13 @@ class ACMOJClient:
 
         return result
 
+    def submit_code(self, problem_id: int, language: str, code: str) -> Optional[Dict]:
+        result = self._make_request("POST", f"/problem/{problem_id}/submit",
+                                    data={"language": language, "code": code})
+        if result and 'id' in result:
+            self._save_submission_id(result['id'])
+        return result
+
     def get_submission_detail(self, submission_id: int) -> Optional[Dict]:
         return self._make_request("GET", f"/submission/{submission_id}")
 
@@ -110,8 +117,9 @@ def main():
     submit_parser.add_argument("--problem-id", type=int, required=True, help="Problem ID")
     submit_parser.add_argument("--language", type=str, required=True,
                                help="Programming language (e.g., cpp, c, python)")
-    submit_parser.add_argument("--code-file", type=str, required=True,
+    submit_parser.add_argument("--code-file", type=str,
                                help="Path to the source code file")
+    submit_parser.add_argument("--git-url", type=str, help="Git repository URL")
 
     # Sub-command for checking submission status
     status_parser = subparsers.add_parser("status", help="Check submission status")
@@ -130,6 +138,16 @@ def main():
     client = ACMOJClient(args.token)
 
     if args.command == "submit":
+        if args.language == "git":
+            if not args.git_url:
+                parser.error("git submissions require --git-url")
+            result = client.submit_git(args.problem_id, args.git_url)
+            if not result:
+                exit(1)
+            print(json.dumps(result))
+            return
+        if not args.code_file:
+            parser.error("source submissions require --code-file")
         try:
             with open(args.code_file, 'r', encoding='utf-8') as f:
                 code_text = f.read()
